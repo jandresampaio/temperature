@@ -7,7 +7,7 @@ const Sensors = (props: { temperatures: TemperatureModel[] }) => {
     <div className="Sensors">
       {props.temperatures.map((temp) => (
         <div
-          key={temp.data}
+          key={`${temp.data}-${temp.id}`}
           className="Sensor-temperature"
           style={{ width: `${sensorsWidthPercentage}%` }}
         >
