@@ -1,0 +1,11 @@
+.Chart-container {
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.Chart-container .responsive {
+  margin-top: 30px;
+}
