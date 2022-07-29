@@ -49,31 +49,43 @@ const Chart = () => {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket(SERVER_WS_URL);
+    let webSocketConnectionInterval: NodeJS.Timer;
+    let ws: WebSocket;
+    function connectToWebSocket() {
+      ws = new WebSocket(SERVER_WS_URL);
+      clearInterval(webSocketConnectionInterval);
 
-    ws.onopen = function (event) {
-      connected.current = true;
-      connected.current && toast.success("Connected");
-    };
+      ws.onopen = function (event) {
+        connected.current = true;
+        connected.current && toast.success("Connected");
+      };
 
-    ws.onmessage = function (event) {
-      try {
-        const data = JSON.parse(event.data) as TemperatureModel[];
-        setTemperatures((previousTemperatures) => {
-          return {
-            all: getUpdatedData(previousTemperatures.all, data),
-            latest: data,
-          };
-        });
-      } catch (err) {
-        toast.error("Could not fetch latest data");
-      }
-    };
+      ws.onmessage = function (event) {
+        try {
+          const data = JSON.parse(event.data) as TemperatureModel[];
+          setTemperatures((previousTemperatures) => {
+            return {
+              all: getUpdatedData(previousTemperatures.all, data),
+              latest: data,
+            };
+          });
+        } catch (err) {
+          toast.error("Could not fetch latest data");
+        }
+      };
 
-    ws.onclose = function (event) {
-      connected.current && toast.error("Disconnected");
-      connected.current = false;
-    };
+      ws.onclose = function (event) {
+        connected.current && toast.error("Disconnected");
+        connected.current = false;
+        webSocketConnectionInterval = setInterval(() => {
+          if (!connected.current) {
+            connectToWebSocket();
+          }
+        }, 3000);
+      };
+    }
+
+    connectToWebSocket();
 
     return () => ws.close();
   }, [getUpdatedData]);
