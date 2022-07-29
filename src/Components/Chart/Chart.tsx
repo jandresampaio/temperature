@@ -6,7 +6,7 @@ import {
   SERVER_WS_URL,
 } from "../../utils";
 import { ToastContainer, toast } from "react-toastify";
-import { TemperatureMap, TemperatureModel } from "../../types/temperature";
+import { TemperatureModel } from "../../types/temperature";
 import {
   CartesianGrid,
   Legend,
@@ -21,17 +21,18 @@ import Sensors from "../Sensor/Sensors";
 import "./Chart.css";
 
 const Chart = () => {
-  const allTemperatures = useRef<TemperatureModel[]>([]);
-  const latestUpdates = useRef<TemperatureModel[]>([]);
   const connected = useRef<boolean>(false);
-  const [updatedTemperatures, setTemperatures] = useState<TemperatureMap>({});
+  const [temperatures, setTemperatures] = useState<{
+    latest: TemperatureModel[];
+    all: TemperatureModel[];
+  }>({ latest: [], all: [] });
 
-  const getLatest5minTemperatures = useCallback(
-    (newData: TemperatureModel[]) => {
+  const getUpdatedData = useCallback(
+    (previousData: TemperatureModel[], newData: TemperatureModel[]) => {
       const currentTime = new Date().getTime();
       const lastValidEntryInMs = currentTime - FIVE_MINS_MS;
       const latestFiveMinutesTemperatures = [
-        ...allTemperatures.current,
+        ...previousData,
         ...newData,
       ].filter(
         ({ temperature, timestamp }) =>
@@ -41,6 +42,11 @@ const Chart = () => {
     },
     []
   );
+
+  const renderTimeAxis = useCallback((value: "auto" | number) => {
+    if (value === "auto") return value;
+    return new Date(value).toLocaleTimeString();
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket(SERVER_WS_URL);
@@ -53,12 +59,12 @@ const Chart = () => {
     ws.onmessage = function (event) {
       try {
         const data = JSON.parse(event.data) as TemperatureModel[];
-        latestUpdates.current = data;
-        allTemperatures.current = getLatest5minTemperatures(data);
-        const temperaturesBySensor = mapTemperaturesToDictionary(
-          allTemperatures.current
-        );
-        setTemperatures(temperaturesBySensor);
+        setTemperatures((previousTemperatures) => {
+          return {
+            all: getUpdatedData(previousTemperatures.all, data),
+            latest: data,
+          };
+        });
       } catch (err) {
         toast.error("Could not fetch latest data");
       }
@@ -70,19 +76,14 @@ const Chart = () => {
     };
 
     return () => ws.close();
-  }, [getLatest5minTemperatures]);
-
-  const renderTimeAxis = useCallback((value: "auto" | number) => {
-    if (value === "auto") return value;
-    return new Date(value).toLocaleTimeString();
-  }, []);
+  }, [getUpdatedData]);
 
   return (
     <div className="Chart-container">
-      <Sensors temperatures={latestUpdates.current} />
+      <Sensors temperatures={temperatures.latest} />
       <ResponsiveContainer width="80%" height={400} className="responsive">
         <LineChart
-          data={allTemperatures.current}
+          data={temperatures.all}
           margin={{ top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <CartesianGrid />
@@ -94,21 +95,24 @@ const Chart = () => {
           />
           <Tooltip />
           <Legend />
-          {Object.values(updatedTemperatures).map((sensorData) => {
-            const sensorId = sensorData?.[0]?.id;
-            return (
-              <Line
-                key={sensorId}
-                type="monotone"
-                data={sensorData}
-                name={`ID ${sensorId.toString()}`}
-                dataKey="temperature"
-                stroke={getSensorColor(sensorId)}
-                dot={false}
-                activeDot={{ r: 8 }}
-              />
-            );
-          })}
+
+          {Object.values(mapTemperaturesToDictionary(temperatures.all)).map(
+            (sensorData) => {
+              const sensorId = sensorData?.[0]?.id;
+              return (
+                <Line
+                  key={sensorId}
+                  type="monotone"
+                  data={sensorData}
+                  name={`ID ${sensorId.toString()}`}
+                  dataKey="temperature"
+                  stroke={getSensorColor(sensorId)}
+                  dot={false}
+                  activeDot={{ r: 8 }}
+                />
+              );
+            }
+          )}
         </LineChart>
       </ResponsiveContainer>
 
