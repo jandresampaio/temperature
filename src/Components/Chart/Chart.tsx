@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FIVE_MINS_MS, getSensorColor, SERVER_WS_URL } from "../../utils";
+import {
+  FIVE_MINS_MS,
+  getSensorColor,
+  mapTemperaturesToDictionary,
+  SERVER_WS_URL,
+} from "../../utils";
 import { ToastContainer, toast } from "react-toastify";
 import { TemperatureMap, TemperatureModel } from "../../types/temperature";
 import {
@@ -21,6 +26,22 @@ const Chart = () => {
   const connected = useRef<boolean>(false);
   const [updatedTemperatures, setTemperatures] = useState<TemperatureMap>({});
 
+  const getLatest5minTemperatures = useCallback(
+    (newData: TemperatureModel[]) => {
+      const currentTime = new Date().getTime();
+      const lastValidEntryInMs = currentTime - FIVE_MINS_MS;
+      const latestFiveMinutesTemperatures = [
+        ...allTemperatures.current,
+        ...newData,
+      ].filter(
+        ({ temperature, timestamp }) =>
+          temperature <= 100 && timestamp >= lastValidEntryInMs
+      );
+      return latestFiveMinutesTemperatures;
+    },
+    []
+  );
+
   useEffect(() => {
     const ws = new WebSocket(SERVER_WS_URL);
 
@@ -33,27 +54,10 @@ const Chart = () => {
       try {
         const data = JSON.parse(event.data) as TemperatureModel[];
         latestUpdates.current = data;
-        console.log("onMessage: ", data);
-
-        const getTemperaturesBySensor = () => {
-          const currentTime = new Date().getTime();
-          const lastValidEntryInMs = currentTime - FIVE_MINS_MS;
-          const latestFiveMinutesTemperatures = [
-            ...allTemperatures.current,
-            ...data,
-          ].filter(
-            ({ temperature, timestamp }) =>
-              temperature <= 100 && timestamp >= lastValidEntryInMs
-          );
-          return latestFiveMinutesTemperatures;
-        };
-        allTemperatures.current = getTemperaturesBySensor();
-        const temperaturesBySensor =
-          allTemperatures.current.reduce<TemperatureMap>((acc, cur) => {
-            if (!acc[cur.id]) acc[cur.id] = [];
-            acc[cur.id].push(cur);
-            return acc;
-          }, {});
+        allTemperatures.current = getLatest5minTemperatures(data);
+        const temperaturesBySensor = mapTemperaturesToDictionary(
+          allTemperatures.current
+        );
         setTemperatures(temperaturesBySensor);
       } catch (err) {
         toast.error("Could not fetch latest data");
@@ -66,7 +70,7 @@ const Chart = () => {
     };
 
     return () => ws.close();
-  }, []);
+  }, [getLatest5minTemperatures]);
 
   const renderTimeAxis = useCallback((value: "auto" | number) => {
     if (value === "auto") return value;
