@@ -36,9 +36,7 @@ const Chart = () => {
       const latestFiveMinutesTemperatures = [
         ...previousData,
         ...newData,
-      ].filter(
-        (d) => d[yAxisProp] <= 100 && d[xAxisProp] >= lastValidEntryInMs
-      );
+      ].filter((d) => d[yAxisProp] <= 100 && d.timestamp >= lastValidEntryInMs);
       return latestFiveMinutesTemperatures;
     },
     []
