@@ -26,6 +26,8 @@ const Chart = () => {
     latest: TemperatureModel[];
     all: TemperatureModel[];
   }>({ latest: [], all: [] });
+  const yAxisProp = "data";
+  const xAxisProp = "timestamp";
 
   const getUpdatedData = useCallback(
     (previousData: TemperatureModel[], newData: TemperatureModel[]) => {
@@ -35,8 +37,7 @@ const Chart = () => {
         ...previousData,
         ...newData,
       ].filter(
-        ({ temperature, timestamp }) =>
-          temperature <= 100 && timestamp >= lastValidEntryInMs
+        (d) => d[yAxisProp] <= 100 && d[xAxisProp] >= lastValidEntryInMs
       );
       return latestFiveMinutesTemperatures;
     },
@@ -90,6 +91,13 @@ const Chart = () => {
     return () => ws.close();
   }, [getUpdatedData]);
 
+  const distinctLabels = new Set([
+    ...temperatures.all.map((t) => t[xAxisProp]),
+  ]);
+  const labelSeries = Array.from(distinctLabels).map((l) => ({
+    [xAxisProp]: l,
+  }));
+
   return (
     <div className="Chart-container">
       <Sensors temperatures={temperatures.latest} />
@@ -99,14 +107,23 @@ const Chart = () => {
           margin={{ top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <CartesianGrid />
-          <YAxis />
+          <YAxis
+            domain={[0, 100]}
+            label={{
+              value: "data",
+              position: "insideLeft",
+              angle: -90,
+              dy: -10,
+            }}
+          />
           <XAxis
-            dataKey="timestamp"
+            dataKey={xAxisProp}
             allowDuplicatedCategory={false}
             tickFormatter={renderTimeAxis}
           />
           <Tooltip />
           <Legend />
+          <Line data={labelSeries} />
 
           {Object.values(mapTemperaturesToDictionary(temperatures.all)).map(
             (sensorData) => {
@@ -114,10 +131,9 @@ const Chart = () => {
               return (
                 <Line
                   key={sensorId}
-                  type="monotone"
                   data={sensorData}
                   name={`ID ${sensorId.toString()}`}
-                  dataKey="temperature"
+                  dataKey={yAxisProp}
                   stroke={getSensorColor(sensorId)}
                   dot={false}
                   activeDot={{ r: 8 }}
